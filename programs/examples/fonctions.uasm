@@ -1,0 +1,211 @@
+| Debut classique
+| On definit les vecteur d'interruption
+
+| On inclus des trucs bien utiles
+.include ../beta.uasm
+.include ../lib.uasm
+
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+| Quand une interruption survient. On se contente
+| de ne rien faire.
+
+__InterruptionInstructionIllegale:	JMP(XP)
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					PUSH(R0)
+					RDCHAR()				| On lit le caractere au clavier
+					ST(R0,__getchar_read_char,R31)		| Et on le met dans __getchar_read_char
+					POP(R0)
+					JMP(XP)
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+
+
+| Loop on the current instruction
+.macro STOP()		BEQN(R31,-1,R31)
+
+| Recupere un caractere au clavier			
+.macro GETCHAR()	CALL(__getchar)
+__getchar_read_char:	LONG(0)				| L'interruption clavier y stocke le caractere lu
+__getchar:		LD(R31,__getchar_read_char,R0)	| On le lit
+			ANDC(R0,0xFF,R0)		| Un caractere est code sur 8 bits, on met le reste a zero
+ 			BEQ(R0,__getchar,R31)		| Et boucle tant qu'il vaut 0
+			ST(R31,__getchar_read_char,R31)	| Ah il vaut pas 0 on remet 0 dans __getchar_read_char
+							| R0 = caractere lu
+			JMP(LP)				| On retourne
+			
+
+.macro SHIFTSCREENUP()	CALL(__shiftscreenup)
+__shiftscreenup:	PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LMOVE(VIDEOADDRESS,R0)		| R0 = adresse debut memoire video
+			ADDC(R0, VIDEOSIZETEXT, R1)	| R1 = adresse après la derniere case
+			SUBC(R1, 4 * VIDEOCOLS, R2)	| R2 = adresse apres la derniere case de l'avant derniere ligne
+
+			| for i = 0 to VIDEOCHARS - VIDEOCOLS - 1 do videomem[i] = videomem[i + VIDEOCOLS]
+			| On remonte chaque ligne de 1 cran
+__shiftscreenup_for1:	CMPLT(R0, R2 , R3)
+			BEQ(R3, __shiftscreenup_for2, R31)
+			
+			| video[i] = video[i + VIDEOCOLS]
+			ADDC(R0, 4 * VIDEOCOLS, R3)
+			LD(R3,0,R3)
+			ST(R3,0,R0)
+
+			| On passe a la case suivante
+			ADDC(R0,4,R0)
+
+			| On continue la boucle for
+			BEQ(R31,__shiftscreenup_for1,R31)
+
+__shiftscreenup_for2:	| On remplit la derniere ligne avec des 0
+			| Deuxieme boucle for:
+			CMPLT(R0,R1,R3)
+			BEQ(R3,__shiftscreenup_fin,R31)	| Sinon a a fini
+
+			| On met un 0
+			ST(R31,0,R0)
+			
+			| Case suivante
+			ADDC(R0,4,R0)
+
+			| On boucle
+			BEQ(R31,__shiftscreenup_for2,R31)
+
+__shiftscreenup_fin:	POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			JMP(LP)
+			
+		
+| Position depuis le debut de la memoire video de la case courrante.
+currentCharPos:		LONG(0)
+
+.macro PUTCHAR(R)	PUSH(R) CALL(__putchar,1)
+__putchar:		FUNCTIONBEGIN()
+			PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LDARG(0,R0)
+			ANDC(R0,0xFF,R1)	| On recupere le caractere dans R1
+			LD(currentCharPos,R2)	| Et la position courrante du caractere dans R2
+
+			| Si le caractere est un retour a la ligne (0xA0)
+			| Alors on va a la ligne
+			CMPEQC(R1,0x0A,R3)
+			BEQ(R3, __putchar_1,R31)
+
+			| On passe a la ligne
+			DIVC(R2, 4 * VIDEOCOLS, R2)
+			ADDC(R2, 1            , R2)
+			MULC(R2, 4 * VIDEOCOLS, R2)
+
+			BEQ(R31,__putchar_2,R31)
+
+
+__putchar_1:		| Si c'est pas 0xA0 alors on l'affiche et on incremente R3
+			LMOVE(VIDEOADDRESS,R3)
+			ADD(R3,R2,R3)
+			ST(R0,0,R3)
+			ADDC(R2,4,R2)
+
+__putchar_2:		| Si R2 depasse la zone memoire, on fait newline
+			CMPGEC(R2, VIDEOSIZETEXT, R3)
+			BEQ(R3, __putchar_fin,R31)
+
+			SHIFTSCREENUP()
+			SUBC(R2, 4 * VIDEOCOLS, R2)
+
+
+__putchar_fin:		ST(R2,	currentCharPos, R31)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			FUNCTIONEND()
+
+
+
+.macro PRINTSTRING(RCOLOR, RMESSAGE)	PUSH(RMESSAGE) PUSH(RCOLOR) CALL(__printstring,2)
+__printstring:		FUNCTIONBEGIN(2)
+			PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+
+			LDARG(1,R1)			| Adresse de l'octet a charger
+			LDARG(0,R2)			| On met la couleur dans R2
+			ANDC(R2,0xFF00,R2)		| On met 0 a la position du caractere
+
+__printstring_for:	MOVE(R1,R3)
+			ANDC(R3,0x3   ,R4)		| Position dans l'entier
+			ANDC(R3,0xFFFC,R3)		| Adresse alignee sur 4
+			
+			LD(R3,0,R3)			| On charge l'entier dans R1)
+			MULC(R4,8,R4)			| On caclule le decalage
+			SHR(R3,R4,R3)			| On place l'octet a lire aux unites
+			ANDC(R3,0xFF,R3)		| On met des 0 ailleurs
+
+			CMPEQC(R3,0,R4)			| Si l'octet est 0x00 c'est la fin de la chaine
+			BNE(R4,__printstring_fin,R31)
+			
+			OR(R3,R2,R3)			| On a l'octet colore
+			PUTCHAR(R3)			| On Affiche le caractere
+
+			ADDC(R1,1,R1)			| On passe a l'octet suivant
+			BEQ(R31,__printstring_for,R31)	| On recommence
+
+__printstring_fin:	POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			FUNCTIONEND(2)
+
+
+welcome:		.text	"Programme compile avec BSim\nLes sources sont disponibles ici:\nhttp://calves.me/christophe/cgit/cgit.cgi/enseignement-public.git/tree/Assembleur/Programmes/examples/fonctions.uasm\n\nCliquez dans la zone noire puis entrez du texte.\n"						
+prompt:			.text	"prompt> "						
+
+__DebutDuProgramme:	STACKINIT(pile)
+
+			LMOVE(0x0000FF00,R0)	| La couleur
+			CMOVE(welcome,R1)	| Le texte
+			PRINTSTRING(R0,R1)	| On affiche
+
+__boucle1:		LMOVE(0x0000F300,R0)	| La couleur
+			CMOVE(prompt,R1)	| Le texte
+			PRINTSTRING(R0,R1)	| On affiche
+
+__boucle2:		LMOVE(0x000F3000,R1)	| On met la couleur dans R1
+			GETCHAR()		| On lit un caractere au clavier
+			MOVE(R0,R2)		| On met le caractere lu dans R2
+
+			OR(R0,R1,R0)		| On met un peu de couleur
+			PUTCHAR(R0)		| Et on l'ecrit!
+			CMPEQC(R2,0x0A,R2)	| Si le caractere est un retour a la ligne
+			BNE(R2 ,__boucle1,R31)	| On reaffiche le prompt
+			BEQ(R31,__boucle2,R31)	| Sinon on continue a lire et ecrire
+
+pile = .			
+

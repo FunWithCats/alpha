@@ -1,0 +1,39 @@
+.include beta.uasm
+
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÂ l'instrcution suivante de l'instruction Illegale
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+
+.macro LMOVE(CST, REG)			ORC(R31, (((CST >> 16) % 0x10000) + ((CST >> 15) % 0x2)) , REG) SHLC(REG, 16 , REG) ADDC(REG, CST % 0x10000, REG)
+
+
+__DebutDuProgramme:			LMOVE(0x80000000,R0)	| On met le debut de la memoire video dans R0
+					LMOVE(0x00077730,R1)	| Le caractere 0 sera affiche en blanc sur fond noir
+								| 000 = fond noir
+								| 777 = gris
+								|  30 = caractere '0'
+boucle:					ST(R1,0,R0)		| On ecrit R1 a l'adresse R0
+
+					ADDC(R0,    4,R0)	| Entier a l'adresse suivante
+					ADDC(R1,0x101,R1)	| On ajoute 0x101 a R1
+
+					BEQ(R31,boucle,R31)	| On recommence

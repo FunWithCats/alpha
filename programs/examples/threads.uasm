@@ -1,0 +1,405 @@
+| Debut classique
+| On definit les vecteur d'interruption
+
+| On inclus des trucs bien utiles
+.include ../beta.uasm
+.include ../lib.uasm
+
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+
+||||||||||||||||||||||||||||||||||||||||||
+|                                        |
+| Bout de code qui change de thread      |
+| Doit etre appelee en mode superviseur  |
+|                                        |
+||||||||||||||||||||||||||||||||||||||||||
+
+currThread:				LONG(0)
+nbThreads:				LONG(1)
+saveRegs:				. = . + (4 * 31 * 4)
+
+.macro SAVEREG(R) ST(R  ,0,R0) ADDC(R0 ,4,R0 )
+.macro LOADREG(R) LD(R30,0,R ) ADDC(R30,4,R30)
+
+changeThread:				| On sauvegarde R1
+					PUSH(R1)
+
+					| Adresse du tableau saveReg[currThread] dans R1
+					LD(R31,currThread,R1)
+					MULC(R1,31*4,R1)
+					ADDC(R1,saveRegs,R1)
+					
+					| On sauvergarde R0 a sa place dans saveRegs[currThread][0]
+					ST(R0,0,R1)
+
+					| Dorenavent, on utilise R0 comme adresse ou enregistrer
+					ADDC(R1,4,R0)
+
+					| On recupere R1
+					POP(R1)
+
+					| On sauvegarde tout
+                                        SAVEREG(R1)
+                                        SAVEREG(R2)
+                                        SAVEREG(R3)
+                                        SAVEREG(R4)
+                                        SAVEREG(R5)
+                                        SAVEREG(R6)
+                                        SAVEREG(R7)
+                                        SAVEREG(R8)
+                                        SAVEREG(R9)
+                                        SAVEREG(R10)
+                                        SAVEREG(R11)
+                                        SAVEREG(R12)
+                                        SAVEREG(R13)
+                                        SAVEREG(R14)
+                                        SAVEREG(R15)
+                                        SAVEREG(R16)
+                                        SAVEREG(R17)
+                                        SAVEREG(R18)
+                                        SAVEREG(R19)
+                                        SAVEREG(R20)
+                                        SAVEREG(R21)
+                                        SAVEREG(R22)
+                                        SAVEREG(R23)
+                                        SAVEREG(R24)
+                                        SAVEREG(R25)
+                                        SAVEREG(R26)
+                                        SAVEREG(R27)
+                                        SAVEREG(R28)
+                                        SAVEREG(R29)
+                                        SAVEREG(R30)
+
+					| Passage au thread suivant curThread = (curThread + 1)%nbThread
+					LD(R31,currThread,R1)
+					LD(R31,nbThreads ,R2)
+
+					| R1 = (R1 + 1) % R2
+					ADDC(R1,1,R1)
+					DIV(R1,R2,R3)
+					MUL(R2,R3,R3)
+					SUB(R1,R3,R1)
+					
+					| On ecrit ne numero du nouveau thread dans la VARIABLE (pas constante!)
+					ST(R1,currThread,R31)
+
+					| R30 = saveReg[currThread][0]
+					| Mainteant on utilise R30 pour les adresses
+					LD(R31,currThread,R30)
+					MULC(R30,31*4,R30)
+					ADDC(R30,saveRegs,R30)
+
+                                        LOADREG(R0)
+                                        LOADREG(R1)
+                                        LOADREG(R2)
+                                        LOADREG(R3)
+                                        LOADREG(R4)
+                                        LOADREG(R5)
+                                        LOADREG(R6)
+                                        LOADREG(R7)
+                                        LOADREG(R8)
+                                        LOADREG(R9)
+                                        LOADREG(R10)
+                                        LOADREG(R11)
+                                        LOADREG(R12)
+                                        LOADREG(R13)
+                                        LOADREG(R14)
+                                        LOADREG(R15)
+                                        LOADREG(R16)
+                                        LOADREG(R17)
+                                        LOADREG(R18)
+                                        LOADREG(R19)
+                                        LOADREG(R20)
+                                        LOADREG(R21)
+                                        LOADREG(R22)
+                                        LOADREG(R23)
+                                        LOADREG(R24)
+                                        LOADREG(R25)
+                                        LOADREG(R26)
+                                        LOADREG(R27)
+                                        LOADREG(R28)
+                                        LOADREG(R29)
+                                        LD(R30,0,R30)
+
+					| LP doit contenir l'adresse de l'instruction suivante du thread
+					JMP(LP,R31)
+
+
+|||||||||||| Les interruptions
+
+
+| Quand une interruption survient. On se contente
+| de ne rien faire.
+
+| Gestionnaire des appels systemes, appelee des qu'une instruction illegale est rencontree
+| Le premier argument sur la pile indique l'appel systeme demandé
+| Si c'est 1 : changement de thread
+| Si c'est 2 : alors on apelle putchar en mode superviseur, le second argument sur la pile devient le charactere a afficher
+__InterruptionInstructionIllegale:	PUSH(LP)
+					PUSH(BP)
+					MOVE(SP,BP)
+					PUSH(R1)
+					PUSH(R2)
+
+					LDARG(0,R1)
+					
+					CMPEQC(R1,1,R2)
+					BNE(R2,changeThread,LP)
+
+					CMPEQC(R1,2,R2)
+					BEQ(R2,__illop1,R31)
+					
+					| On fait le putchar en mode superviseur
+					LDARG(1,R2)
+					PUSH(R2)
+					CALL(__putchar,1)
+
+__illop1:				
+					
+__InterruptionInstructionIllegale_fin:  POP(R2)
+					POP(R1)
+					POP(BP)
+					POP(LP)
+					JMP(XP)
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					PUSH(LP)
+					BEQ(R31,changeThread,LP)		| On change de thread
+					POP(LP)
+					JMP(XP,R31)
+					
+__InterruptionClavier:			SUBC(XP,4,XP)
+					PUSH(R0)
+					RDCHAR()				| On lit le caractere au clavier
+					ST(R0,__getchar_read_char,R31)		| Et on le met dans __getchar_read_char
+					POP(R0)
+					JMP(XP)
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+
+
+|||||||||||||||||||||| Fonctions pour l'affichage
+
+| Loop on the current instruction
+.macro STOP()		BEQN(R31,-1,R31)
+
+| Recupere un caractere au clavier			
+.macro GETCHAR()	CALL(__getchar)
+__getchar_read_char:	LONG(0)				| L'interruption clavier y stocke le caractere lu
+__getchar:		LD(R31,__getchar_read_char,R0)	| On le lit
+			ANDC(R0,0xFF,R0)		| Un caractere est code sur 8 bits, on met le reste a zero
+ 			BEQ(R0,__getchar,R31)		| Et boucle tant qu'il vaut 0
+			ST(R31,__getchar_read_char,R31)	| Ah il vaut pas 0 on remet 0 dans __getchar_read_char
+							| R0 = caractere lu
+			JMP(LP)				| On retourne
+			
+| Decalle completement l'ecran d'une ligne vers le haut
+.macro SHIFTSCREENUP()	CALL(__shiftscreenup)
+__shiftscreenup:	PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LMOVE(VIDEOADDRESS,R0)		| R0 = adresse debut memoire video
+			ADDC(R0, VIDEOSIZETEXT, R1)	| R1 = adresse aprÃÂÃÂ¨s la derniere case
+			SUBC(R1, 4 * VIDEOCOLS, R2)	| R2 = adresse apres la derniere case de l'avant derniere ligne
+
+			| for i = 0 to VIDEOCHARS - VIDEOCOLS - 1 do videomem[i] = videomem[i + VIDEOCOLS]
+			| On remonte chaque ligne de 1 cran
+__shiftscreenup_for1:	CMPLT(R0, R2 , R3)
+			BEQ(R3, __shiftscreenup_for2, R31)
+			
+			| video[i] = video[i + VIDEOCOLS]
+			ADDC(R0, 4 * VIDEOCOLS, R3)
+			LD(R3,0,R3)
+			ST(R3,0,R0)
+
+			| On passe a la case suivante
+			ADDC(R0,4,R0)
+
+			| On continue la boucle for
+			BEQ(R31,__shiftscreenup_for1,R31)
+
+__shiftscreenup_for2:	| On remplit la derniere ligne avec des 0
+			| Deuxieme boucle for:
+			CMPLT(R0,R1,R3)
+			BEQ(R3,__shiftscreenup_fin,R31)	| Sinon a a fini
+
+			| On met un 0
+			ST(R31,0,R0)
+			
+			| Case suivante
+			ADDC(R0,4,R0)
+
+			| On boucle
+			BEQ(R31,__shiftscreenup_for2,R31)
+
+__shiftscreenup_fin:	POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			JMP(LP)
+			
+		
+| Position depuis le debut de la memoire video de la case courrante.
+currentCharPos:		LONG(0)
+
+.macro PUTCHAR(R)	PUSH(R) CALL(__putchar,1)
+__putchar:		FUNCTIONBEGIN()
+			PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LDARG(0,R0)
+			ANDC(R0,0xFF,R1)	| On recupere le caractere dans R1
+			LD(currentCharPos,R2)	| Et la position courrante du caractere dans R2
+
+			| Si le caractere est un retour a la ligne (0xA0)
+			| Alors on va a la ligne
+			CMPEQC(R1,0x0A,R3)
+			BEQ(R3, __putchar_1,R31)
+
+			| On passe a la ligne
+			DIVC(R2, 4 * VIDEOCOLS, R2)
+			ADDC(R2, 1            , R2)
+			MULC(R2, 4 * VIDEOCOLS, R2)
+
+			BEQ(R31,__putchar_2,R31)
+
+
+__putchar_1:		| Si c'est pas 0xA0 alors on l'affiche et on incremente R3
+			LMOVE(VIDEOADDRESS,R3)
+			ADD(R3,R2,R3)
+			ST(R0,0,R3)
+			ADDC(R2,4,R2)
+
+__putchar_2:		| Si R2 depasse la zone memoire, on fait newline
+			CMPGEC(R2, VIDEOSIZETEXT, R3)
+			BEQ(R3, __putchar_fin,R31)
+
+			SHIFTSCREENUP()
+			SUBC(R2, 4 * VIDEOCOLS, R2)
+
+
+__putchar_fin:		ST(R2,	currentCharPos, R31)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			FUNCTIONEND()
+
+
+
+.macro PRINTSTRING(RCOLOR, RMESSAGE)	PUSH(RMESSAGE) PUSH(RCOLOR) CALL(__printstring,2)
+__printstring:		FUNCTIONBEGIN(2)
+			PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+
+			LDARG(1,R1)			| Adresse de l'octet a charger
+			LDARG(0,R2)			| On met la couleur dans R2
+			ANDC(R2,0xFF00,R2)		| On met 0 a la position du caractere
+
+__printstring_for:	MOVE(R1,R3)
+			ANDC(R3,0x3   ,R4)		| Position dans l'entier
+			ANDC(R3,0xFFFC,R3)		| Adresse alignee sur 4
+			
+			LD(R3,0,R3)			| On charge l'entier dans R1)
+			MULC(R4,8,R4)			| On caclule le decalage
+			SHR(R3,R4,R3)			| On place l'octet a lire aux unites
+			ANDC(R3,0xFF,R3)		| On met des 0 ailleurs
+
+			CMPEQC(R3,0,R4)			| Si l'octet est 0x00 c'est la fin de la chaine
+			BNE(R4,__printstring_fin,R31)
+			
+			OR(R3,R2,R3)			| On a l'octet colore
+			PUTCHAR(R3)			| On Affiche le caractere
+
+			ADDC(R1,1,R1)			| On passe a l'octet suivant
+			BEQ(R31,__printstring_for,R31)	| On recommence
+
+__printstring_fin:	POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(R0)
+			FUNCTIONEND(2)
+
+
+
+
+
+symboles:               .text "+-*/()[]{}\n"
+lettres:		.text "ABCDEFGHIJ\n"
+chiffres:		.text "0123455689\n"
+
+__DebutDuProgramme:	| On met l'adresse de la premiere instruction du thread 1 dans R1
+                        | Le thread 1 a comme numero 1
+			CMOVE(thread1,R1)
+
+			| Et on place cette adresse dans le tableau saveReg[1][LP]
+			| Comme ca quand on changera de thread, LP sera charge avec
+			| l'adresse du debut et le thread de lancera*
+			| Pour ceux qui ne comprendrait pas le (LP * 4) allez voir dans beta.uasm
+			| ce que vaut rellement LP
+			ST(R1,saveRegs +      (31 * 4)  + (LP * 4),R31)
+
+			| Idem pour le thread 2 de numero 2
+			CMOVE(thread2,R2)
+			ST(R2,saveRegs + (2 * (31 * 4)) + (LP * 4),R31)
+
+			| On met 3 dans la VARIABLE! nbThread
+			| Si on l'avait mis avant, on aurait pu changer de thread avant meme d'avoir enregistrer
+			| les adresses dans le tableau, ca planterait. maintenant qu'elles y sont, on peut
+			| changer de thread sans risque.
+			CMOVE(3,R1)
+			ST(R1,nbThreads,R31)
+
+			| Et on commence la boucle
+
+			STACKINITL(pile)
+__boucle_0:		LMOVE(0x000FF000,R0)	| La couleur
+			CMOVE(symboles,R1)	| Le texte
+			PRINTSTRING(R0,R1)	| On affiche
+
+			| On passe au Thread suivant
+			| Voir le code de l'interruption illegale.
+			CMOVE(1,R0)
+			PUSH(R0)
+			HALT()
+
+
+			BEQ(R31,__boucle_0,R31)	| On Recommence			
+			
+
+thread1:		STACKINITL(pile1)
+__boucle_1:		LMOVE(0x0000FF00,R0)	| La couleur
+			CMOVE(lettres,R1)	| Le texte
+			PRINTSTRING(R0,R1)	| On affiche
+			BEQ(R31,__boucle_1,R31)	| On Recommence
+
+thread2:		STACKINITL(pile2)
+__boucle_2:		LMOVE(0x000F0F00,R0)	| La couleur
+			CMOVE(chiffres,R1)	| Le texte
+			PRINTSTRING(R0,R1)	| On affiche
+			BEQ(R31,__boucle_2,R31)	| On Recommence
+
+pile  = .
+pile1 = pile  + 0x100000
+pile2 = pile1 + 0x100000			
+

@@ -1,0 +1,47 @@
+What is Alpha
+=============
+
+ The MIT course "Computation Structures" defines an abstract
+machine called Beta. They also provide a simulator called BSim.
+Alpha aims to be a fully compatible, high speed, beta machine
+implementation with display emulation.
+
+ Whereas BSim, Alpha is not (yet) an assembler. It takes binary
+programs produced by BSim un run them.
+
+How to compile/run Alpha?
+=========================
+
+ Alpha is written in scala using sbt (Simple Build Tool). Just
+type:
+
+# sbt run
+
+ at the prompt to run Alpha.
+
+
+How to run beta programs?
+=========================
+
+ First open your file with BSim, and assemble it to get ".bin" file.
+Then run Alpha, open this ".bin" file, and press "Executer". The "Ecran"
+tab display the screen.
+
+
+Licence?
+========
+
+Alpha is free (as in freedom) software, licenced under the terms of
+the GNU General Public Licence Third version or any later. You can find
+a copy of the licence in the LICENCE.txt.
+
+
+Howto deploy it?
+================
+
+ Alpha is compatible is tested on openjdk-6 and 7. To deploy it,
+proguard and m4 needs to be installed. Simply type:
+
+# make javajar
+
+ You may need to edit paths to scala home or scala version in Makefile.

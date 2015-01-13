@@ -1,0 +1,118 @@
+.include ../beta.uasm
+.options tty clock
+. = VEC_RESET
+	BR(__Start)
+. = VEC_II
+	BR(__IllegalInstruction)
+. = VEC_CLK
+	BR(__Clock)
+. = VEC_KBD
+	BR(__Keyboard)
+. = VEC_MOUSE
+	BR(__Mouse)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Appelle quand une instruction illegale est execute  |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+__IllegalInstruction:	JMP(XP)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Appelle 30 fois par secondes                        |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+__Clock:		SUBC(XP,4,XP)			| L'instruction a XP - 4 n'a pas ete execute
+			ORC(R31, backbuffer,R0)		| On charge l'adresse du back buffer dans R0
+			LD(R31,  videoAddr,R1)		| On charge l'adresse de la memoire video dans R1			
+			LD(R31,   videoMem,R2)		| On charge la taille de la memoire video dans R2
+			LD(R31, curseurPos,R3)		| On charge l'addresse du curseur dans R3
+			ANDC(R31,0,R4)			| R4 contient le deplacement depuis le debut de la memoire video/backbuffer
+							| Et sert d'iterateur
+
+__Clock_cond1:		CMPLT(R4,R2,R5)			| On commence une boucle: for (R4 = 0; R4 < R2 (taille de ma memoire video); R4 = R4 + 4) ...
+			BEQ(R5,__Clock_ret,R31)		| Si faux, on finit.
+
+			CMPEQ(R4,R3,R5)			| On reutilise R5. On commence un: if (R4 = R3 (position du curseur)) ...
+			BEQ(R5,__Clock_else,R31)	| Si la position n'est pas celle du curseur, va dans la branche else
+
+			| Branche then, la position (R4) est celle du curseur (R3)
+			ADDC(R31, curseur, R6)		| On charge dans R6 l'adresse du caractere du curseur
+			BEQ(R31,__Clock_fin_if,R31)	| On sort du if
+
+			| Branche else, la position n'est pas celle du curseur
+__Clock_else:		ADD(R0,R4,R6)			| On charge dans R6 l'addresse du caractere dans le backbuffer
+
+__Clock_fin_if:		LD(R6,0,R6)			| La caracterere a l'adresse R6, curseur ou backbuffer, est chargee dans R6
+
+			ADD(R1,R4,R7)			| On charge l'adresse du caractere dans la memoire video dans R7
+			ST(R6,0,R7)			| On ecrit le caractere dans la memoire video.
+
+			ADDC(R4,4,R4)			| On incremente le compteur
+			BEQ(R31,__Clock_cond1,R31)	| On recommence.
+
+__Clock_ret:		JMP(XP)				| On retourne au code
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Appellee quand une touche est tapee au clavier      |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+__Keyboard:		SUBC(XP,4,XP)		| L'instruction a XP - 4 n'a pas ete execute
+			JMP(XP)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Appellee quand la sourie bouge ou fait un clic      |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__Mouse:		SUBC(XP,4,XP)		| L'instruction a XP - 4 n'a pas ete executee
+			CLICK()			| On recupere les informations de la sourie dans R0
+			ANDC(R0,0xFFF,R1)	| Les 10 dernier bits de R0 sont Y, on les met dans R1
+			SHRC(R0,12,R2)		| Les 10 bits suivants de R0 sont X, on les met dans R2
+			ANDC(R2,0xFFF,R2)	| Ne pas oublier de ne prendre QUE les 10 bits suivants!
+
+			| Les coordonnees sont en 800x600, on les ramene en 80x30
+			MULC(R1,  30, R1)	| Y = Y * (30 / 600)
+			DIVC(R1, 600, R1)	
+
+			MULC(R2,  80, R2)	| X = X * (80 / 800)
+			DIVC(R2, 800, R2)
+
+			| On calcule la position dans la memoire video du caractere X,Y
+			MULC(R1,  80, R3)	| Position relative = R3 = 80 * Y + X
+			ADD( R3,  R2, R3)
+			MULC(R3,   4, R3)	| Chaque position fait 4 octets
+
+			ST(R3, curseurPos, R31)	| On ecrit l'addresse relative dans la memoire video du curseur dans curseurPos
+
+			JMP(XP)			| On retourne au code.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Variables utilisees par le programme                |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+videoAddr:		LONG(0x80000000)	| Addresse de la memoire video
+videoMem:		LONG(4*80*30)		| Taille de la memoire video
+backbuffer:		STORAGE(80*30)		| Le BackBuffer
+curseur:		LONG(0x000FFF58)	| Un X blanc sur fond noir
+curseurPos:		LONG(0)			| La position actuelle du curseur
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| Debut du programme                                  |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__Start:		| On efface le backbuffer
+			ANDC(R31,0,R10)			| for (R10 = 0; R10 < 80*30*4 (taille du backbuffer); R10 = R10 + 4)
+__code_cond1:		CMPLTC(R10,80*30*4,R11)		| On stocke la condition dans R11
+			BEQ(R11,__code_fin_for,R31)	| On sort du for
+
+			ADDC(R10,backbuffer,R12)	| R12 = adresse du caractere courrant dans le backbuffer
+			ST(R31,0,R12)			| On ecrit 0 dans le backbuffer a cette adresse
+
+			ADDC(R10,4,R10)			| On incremente
+			BEQ(R31,__code_cond1,R31)	| Et on boucle
+
+__code_fin_for:		BR(__code_fin_for)		| On boucle indefiniement sur cette instruction

@@ -1,0 +1,283 @@
+.include ../beta.uasm
+.include ../lib.uasm
+
+	BEQ(R31,__DebutDuProgramme,R31)
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+	BEQ(R31,__InterruptionHorloge,R31)	
+	BEQ(R31,__InterruptionClavier,R31)
+	BEQ(R31,__InterruptionSouris,R31)
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÂ l'instrcution suivante de l'instruction Illegale
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					PUSH(R1)
+
+					CMOVE(1,R1)		| On met a 1 la valeur
+					ST(R1,horlogeTick,R31)	| de la variable horlogeTick
+
+					POP(R1)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					PUSH(R0)
+					PUSH(R1)
+
+					RDCHAR()
+					ANDC(R0,0xFF,R0)
+					
+					ST(R31, key, R31)
+
+					CMPEQC(R0, 0x34, R1)
+					BEQ(R1, .+ 12, R31)
+					CMOVE(0x1, R1)
+					ST(R1, key, R31)
+
+					CMPEQC(R0, 0x36, R1)
+					BEQ(R1, .+ 12, R31)
+					CMOVE(0x0, R1)
+					ST(R1, key, R31)
+
+					POP(R1)
+					POP(R0)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+SCALE   = 1
+WIDTH   = 800 / SCALE
+HEIGHT  = 600 / SCALE
+TAILLE4 = (800 * 600) / 2
+TAILLE  = (800 * 600) * 2
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui attend une interruption d'horloge
+|
+| attendHorloge()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+horlogeTick:	LONG(0)
+
+attendHorloge:	PUSH(R1)
+
+attendHorloge1:	LD(horlogeTick,R1)
+		BEQ(R1, attendHorloge1, R31)
+		ST(R31, horlogeTick, R1)
+
+		POP(R1)
+		JMP(LP,R31)
+
+
+| On ne dessine pas dans la memoire video directement
+| Mais dans ce buffer! Ce dernier est a la fin du code
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui efface le backbuffer
+|
+| effaceBackBuffer()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+effaceBackBuffer:	PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			LMOVE(backbuffer             , R1)	| Debut du backbuffer
+			LMOVE(backbuffer + (2400 * 4), R2)	| Fin du backbuffer
+
+effaceBackBuffer1:	CMPLT(R1,R2,R3)				| boucle for
+			BEQ(R3,effaceBackBuffer2,R31)
+
+			ST(R31,0,R1)				| On efface le caractere
+
+			ADDC(R1,4,R1)
+			BEQ(R31,effaceBackBuffer1,R31)		| On boucle
+
+effaceBackBuffer2:	POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui affiche le backbuffer a l'ecran
+|
+| afficherBackBuffer()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+afficherBackBuffer:	PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+
+			LMOVE(backbuffer , R1)			| Debut du backbuffer
+			LMOVE(0x80000000 , R2)			| Debut de la memoire video
+
+			CMOVE(0          , R3)			| Position dans le buffer
+afficherBackBuffer1:	CMPLTL(R3,TAILLE ,R4)			| boucle for
+			BEQ(R4,afficherBackBuffer2,R31)
+
+			ADD(R1,R3,R4)				| Adresse du carractere dans le backbuffer
+			LD(R4,0,R4)				| Valeur  du carractere dans le backbuffer
+
+			ADD(R2,R3,R5)				| Adresse du carractere dans la memoire video
+			ST(R4,0,R5)				| On efface le caractere
+
+			ADDC(R3,4,R3)
+			BEQ(R31,afficherBackBuffer1,R31)	| On boucle
+
+afficherBackBuffer2:	POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+
+afficher_serpent : 	PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			PUSH(R4)
+			PUSH(R5)
+			
+			LMOVE(0xFFFFFF00, R0)
+			LMOVE(backbuffer, R1)
+
+			CMOVE(0 ,R4)
+	
+affboucle :		CMPLTC(R4, 40, R5)
+			BEQ(R5, afffin, R31)
+
+			LMOVE(backbuffer, R1)
+
+			LD(R4, serpent_x, r3)
+			LD(R4, serpent_y, r2)
+			
+			MULC(R2, 80, R2)
+			ADD(R3, R2, R2)
+		
+			MULC(R2, 4, R2)
+
+			ADD(R1 , R2, R1)
+
+
+			ST(R0, 0, R1)
+			ADDC(R4, 4, R4)
+			BEQ(R31, affboucle, R31)
+
+afffin :		POP(R5)
+			POP(R4)
+
+			POP(R3)
+			POP(R2)
+			POP(R1)
+		 	POP(R0)
+			JMP(LP, R31)
+			
+
+deplacer_serpent :	PUSH(R0)
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+			
+			LD(R31, serpent_head, R4)
+			MULC(R4, 4, R4)
+
+			LD(R4, serpent_x, r0)
+	
+			LD(R31, key, R5)
+
+			BNE(R5, .+8, R31)
+			ADDC(R0, 1, R0)
+			BEQ(R5, .+8, R31)
+			ADDC(R0, -1, R0)
+
+			ST(R0, serpent_x, R4)
+			
+			ADDC(R4, 4, R4)
+			DIVC(R4, 4, R4)
+			ST(R4, serpent_head, R31)
+
+			CMPLTC(R4, 10, R3)
+			BNE(R3, .+8, R31) | si R3 == 1 alors PC += 8
+			ST(R31, serpent_head, R31)
+
+			POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+		 	POP(R0)
+			JMP(LP, R31)
+
+__DebutDuProgramme:	CMOVE(pile,SP)			| Ne pas oublier de commencer par metre en place la pile
+
+boucle:			CALL(attendHorloge)		| On attend que l'horloge envoi un tic
+			CALL(effaceBackBuffer)		| On efface le backbuffer
+		
+			CALL(deplacer_serpent)
+				
+			CALL(afficher_serpent)
+
+
+			CALL(afficherBackBuffer)	| On affiche le backbuffer
+
+			
+
+			PUSH(R3)
+			PUSH(R2)
+			PUSH(R1)
+			BEQ(R31,boucle,R31)
+
+| On met a la fin du code les gros tableaux
+
+
+
+key : LONG(0)
+
+serpent_x : 	LONG(0)
+		LONG(1)
+		LONG(2)
+		LONG(3)
+		LONG(4)
+		LONG(5)
+		LONG(6)
+		LONG(7)
+		LONG(8)
+		LONG(9)
+
+serpent_y :  	LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+		LONG(0)
+
+serpent_head : LONG(0)
+
+backbuffer:	STORAGE(2400)
+pile = .

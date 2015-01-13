@@ -1,0 +1,138 @@
+.include ../beta.uasm
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va a l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee a  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+| On defini des symboles
+| RADRESSE sera remplace par R0 partout ou il apparait.
+| C'est a dire que RADRESSE est un synonyme pour R0
+| Idem pour les autres.
+
+RADRESSE = R0
+RCHAR    = R1
+RCOLOR   = R2
+RVAL     = R3
+RNBCHAR	 = R4
+RITER    = R5
+RCOND    = R6
+RVIDMEM  = R7
+
+videoMem:	LONG(0x80000000)	| Adresse de la memoire video.
+nbchar:		LONG(2400)		| Il y a 2400 cases a l'ecran.
+
+__DebutDuProgramme:	LD(videoMem, RVIDMEM)	| On charge l'adresse de la memoire video dans RVIDMEM
+			LD(nbchar  , RNBCHAR)	| On charge le nombre de cases de l'affichage dans RNBCHAR
+			ANDC(R31,0,RCHAR)	| RCHAR represente le caractere a afficher
+			ANDC(R31,0,RCOLOR)	| RCOLOR est la couleur d'avant plan
+						| La couleur d'arriere plan est sa négation bit à bit
+boucle1:		ANDC(R31,0,RITER)	| RITER est le conteur de la boucle
+						| Au debut il vaut 0
+
+			| On implente une boucle for:
+			| for(RITER = 0, RITER < 2400, RITER = RITER + 1) ....
+boucle2:		CMPLT(RITER, RNBCHAR, RCOND)
+			BEQ(RCOND,boucle1,R31)
+
+			| On construit la valeur de la case a afficher
+			| La couleur d'arriere plan est la negation binaire
+			| de RCOLOR
+			XORC(RCOLOR,-1,RVAL)
+			SHLC(RVAL,12,RVAL)
+
+			| La couleur d'avant plan est RCOLOR
+			OR(RVAL,RCOLOR,RVAL)
+			SHLC(RVAL,8,RVAL)
+
+			| On ajoute le caractere
+			OR(RVAL,RCHAR,RVAL)
+
+			| On calcule l'adresse de la case
+			| De l'affichage en memoire
+			MULC(RITER,4,RADRESSE)
+			ADD(RVIDMEM, RADRESSE, RADRESSE)
+		
+			| On affiche
+			ST(RVAL,0,RADRESSE)
+
+			| On ajoute 1 RCOLOR pour avoir une autre couleur
+			ADDC(RCOLOR,1,RCOLOR)
+
+			| Une couleur est codee sur 12 bits, on met a zero le reste
+			ANDC(RCOLOR,0xFFF,RCOLOR)
+
+			| On passe au caractere suivant
+			ADDC(RCHAR,1,RCHAR)
+
+			| Les caractères sont codes sur 8 bits, on met a zero le reste.
+			ANDC(RCHAR,0xFF,RCHAR)
+
+			| On passe a la case suivante de l'affichage
+			ADDC(RITER,1,RITER)
+
+			| On recommence.
+			BEQ(R31,boucle2,R31)
+		

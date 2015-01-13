@@ -1,0 +1,17 @@
+These are example programs for Alpha.
+The programs are in the examples directory.
+You can assemble them with BSim as usual
+and run them with Alpha.
+
+fonctions		:	Emulate (badly) a terminal.
+memoire_video		:	Video Display stress test
+interruptions_souris	:	Test mouse interrupts.
+interruptions_clavier	:	Test keyboard interrupts.
+
+
+For exampe, open the file example/fonctions.uasm
+with BSim. Assemble it to Producuce the binary file
+examples/fonctions.bin . Them open it with Alpha
+and watch the display :)
+
+To download and run BSim, just type "make".

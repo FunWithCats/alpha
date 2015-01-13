@@ -1,0 +1,4 @@
+.include ../lib/logic.uasm
+.include ../lib/long.uasm
+.include ../lib/stack.uasm
+.include ../lib/video.uasm

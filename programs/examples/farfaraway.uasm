@@ -1,0 +1,9 @@
+.include ../beta.uasm
+
+.macro MONSTORAGE(n)  { . = . + (4 * n) }
+			LONG(UnLabelLointain)
+
+			BEQ(R31,UnLabelLointain,R31)
+			MONSTORAGE(65535)
+
+UnLabelLointain:	ADDC(R1,13,R1)

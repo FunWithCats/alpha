@@ -1,0 +1,293 @@
+.include ../beta.uasm
+.include ../lib.uasm
+
+	BEQ(R31,__DebutDuProgramme,R31)
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+	BEQ(R31,__InterruptionHorloge,R31)	
+	BEQ(R31,__InterruptionClavier,R31)
+	BEQ(R31,__InterruptionSouris,R31)
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÃÂ l'instrcution suivante de l'instruction Illegale
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					PUSH(R1)
+
+					CMOVE(1,R1)		| On met a 1 la valeur
+					ST(R1,horlogeTick,R31)	| de la variable horlogeTick
+
+					POP(R1)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui attend une interruption d'horloge
+|
+| attendHorloge()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+horlogeTick:	LONG(0)
+
+attendHorloge:	PUSH(R1)
+
+attendHorloge1:	LD(horlogeTick,R1)
+		BEQ(R1, attendHorloge1, R31)
+		ST(R31, horlogeTick, R1)
+
+		POP(R1)
+		JMP(LP,R31)
+
+
+| On ne dessine pas dans la memoire video directement
+| Mais dans ce buffer!
+
+backbuffer:	STORAGE(2400)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui efface le backbuffer
+|
+| effaceBackBuffer()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+effaceBackBuffer:	PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			LMOVE(backbuffer             , R1)	| Debut du backbuffer
+			LMOVE(backbuffer + (2400 * 4), R2)	| Fin du backbuffer
+
+effaceBackBuffer1:	CMPLT(R1,R2,R3)				| boucle for
+			BEQ(R3,effaceBackBuffer2,R31)
+
+			ST(R31,0,R1)				| On efface le caractere
+
+			ADDC(R1,4,R1)
+			BEQ(R31,effaceBackBuffer1,R31)		| On boucle
+
+effaceBackBuffer2:	POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui affiche le backbuffer a l'ecran
+|
+| afficherBackBuffer()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+afficherBackBuffer:	PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+
+			LMOVE(backbuffer , R1)			| Debut du backbuffer
+			LMOVE(0x80000000 , R2)			| Debut de la memoire video
+
+			CMOVE(0          , R3)			| Position dans le buffer
+afficherBackBuffer1:	CMPLTC(R3,2400*4,R4)			| boucle for
+			BEQ(R4,afficherBackBuffer2,R31)
+
+			ADD(R1,R3,R4)				| Adresse du carractere dans le backbuffer
+			LD(R4,0,R4)				| Valeur  du carractere dans le backbuffer
+
+			ADD(R2,R3,R5)				| Adresse du carractere dans la memoire video
+			ST(R4,0,R5)				| On efface le caractere
+
+			ADDC(R3,4,R3)
+			BEQ(R31,afficherBackBuffer1,R31)	| On boucle
+
+afficherBackBuffer2:	POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+| Constante qui definit la valeur a mettre dans la case de la balle
+BALLE = 0x000FFF00 + 'O'
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui affiche la balle Ã  une position en (x,y)
+| dans le backbuffer
+|
+| afficherBalle(x,y)
+| x = abscisse de 0 a 79
+| y = ordonnee de 0 a 29
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+afficherBalle:	PUSH(LP)
+		PUSH(BP)
+		MOVE(SP,BP)
+		PUSH(R1)
+		PUSH(R2)
+
+		LDARG(0,R1)		| Premier argument (x) dans R1
+		LDARG(1,R2)		| Second  argument (y) dans R2
+
+		MULC(R2,80,R2)		| On calcule la position du caractere a l'ecran dans R2
+		ADD(R2,R1,R2)
+		MULC(R2,4,R2)		| R2 = position en octet du caractere a l'ecran
+
+		LMOVE(backbuffer,R1)	| R1 = adresse mememoire
+		ADD(R1,R2,R2)		| R2 = adresse du caractere en memoire
+		LMOVE(BALLE, R1)	| R1 = valeur de la case
+
+		ST(R1,0,R2)		| Affichage de la balle
+
+		POP(R2)
+		POP(R1)
+		POP(BP)
+		POP(LP)
+		JMP(LP,R31)		| On retourne d'ou on vient
+		
+
+
+
+
+		
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Position de la balle sur l'ecran:
+| struct Position {
+|   int x;
+|   int y;
+| } position;
+|
+| x = abscisse de 0 a 79
+| y = ordonnee de 0 a 29
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+position:		LONG(0) | x
+			LONG(0) | y
+
+position_x = position
+position_y = position + 4	
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Position de la balle sur l'ecran:
+| struct Vitesse {
+|   int x;
+|   int y;
+| } vitesse;
+|
+| x = abscisse en cases de l'ecran par secondes
+| y = ordonnee en cases de l'ecran par secondes
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+vitesse:		LONG(2) | x
+			LONG(1) | y
+
+vitesse_x = vitesse
+vitesse_y = vitesse + 4	
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|
+| Fonction qui calcule la prochaine position de la
+| balle. Ne prend aucun argument
+|
+| prochainePosition()
+|
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+prochainePosition:	PUSH(R1)		| On ne sauvegarde ni BP ni LP
+			PUSH(R2)		| Car on ne les modifie pas
+			PUSH(R3)		| Et on utilise pas BP (pas de LDARG ni LDVAR)
+			PUSH(R4)
+
+			LD(position_x,R1)
+			LD(position_y,R2)
+
+			LD(vitesse_x, R3)
+			LD(vitesse_y, R4)
+
+			ADD(R1,R3,R1)		| Nouvelle position en x dans R1
+			ADD(R2,R4,R2)		| Nouvelle position en y dans R2
+
+			| R1 et R2 peuvent depasser un bord, dans ce cas on rebondit
+			CMPLTC(R1,0,R5)			| x < 0
+			BEQ(R5,prochainePosition1,R31)	| Sinon on poursuit
+
+			MULC(R1,-1,R1)			| symetrie par rapport au bord
+			MULC(R3,-1,R3)			| inversion de la vitesse en x
+
+prochainePosition1:	CMPLTC(R2,0,R5)			| y < 0
+			BEQ(R5,prochainePosition2,R31)	| Sinon on poursuit
+
+			MULC(R2,-1,R2)			| symetrie par rapport au bord
+			MULC(R4,-1,R4)			| inversion de la vitesse en y
+
+prochainePosition2:	CMPGTC(R1,79,R5)			| x > 79
+			BEQ(R5,prochainePosition3,R31)	| Sinon on poursuit
+
+			MULC(R1,-1,R1)			| symetrie par rapport au bord
+			ADDC(R1,2*79,R1)
+
+			MULC(R3,-1,R3)			| inversion de la vitesse en x
+
+prochainePosition3:	CMPGTC(R2,29,R5)			| y > 29
+			BEQ(R5,prochainePosition4,R31)	| Sinon on poursuit
+
+			MULC(R2,-1,R2)			| symetrie par rapport au bord
+			ADDC(R2,2*29,R2)
+
+			MULC(R4,-1,R4)			| inversion de la vitesse en y
+
+prochainePosition4:	ST(R1,position_x,R31)		| on ecrit les valeurs en memoire
+			ST(R2,position_y,R31)
+			ST(R3,vitesse_x,R31)
+			ST(R4,vitesse_y,R31)
+
+			POP(R4)				| On retourne d'ou on vient
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+__DebutDuProgramme:	CMOVE(pile,SP)
+
+boucle:			CALL(attendHorloge)		| On attend que l'horloge envoi un tic
+			CALL(effaceBackBuffer)		| On efface le backbuffer
+
+			LD(position_x,R1)		| On charge position.x dans R1
+			LD(position_y,R2)		| Et position.y dans R2
+
+			PUSH(R2)			| On appelle afficherBalle
+			PUSH(R1)			| 
+			CALL(afficherBalle,2)
+
+			CALL(afficherBackBuffer)	| On affiche le backbuffer
+
+			CALL(prochainePosition)		| On calcule la prochaine position
+			BEQ(R31,boucle,R31)
+
+pile = .

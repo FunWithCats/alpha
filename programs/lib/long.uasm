@@ -1,0 +1,41 @@
+| Beta instructions use 16 bits constants.
+| The following macros simulate instruction with 32 bits constants.
+
+| WARNING: DO NOT USE R31 AS RC !!!!
+
+| WARNING: If you modify LMOVE, then update BNEL and BEQL accordingly!
+.macro LMOVE(CST, REG)			ORC(R31, (((CST >> 16) % 0x10000) + ((CST >> 15) % 0x2)) , REG) SHLC(REG, 16 , REG) ADDC(REG, CST % 0x10000, REG)
+
+.macro ADDL(RA, CST, RC)		LMOVE(CST,RC) ADD(RA,RC,RC)
+.macro SUBL(RA, CST, RC)		LMOVE(CST,RC) SUB(RA,RC,RC)
+.macro MULL(RA, CST, RC)		LMOVE(CST,RC) MUL(RA,RC,RC)
+.macro DIVL(RA, CST, RC)		LMOVE(CST,RC) DIV(RA,RC,RC)
+
+.macro ANDL(RA, CST, RC)		LMOVE(CST,RC) AND(RA,RC,RC)
+.macro XORL(RA, CST, RC)		LMOVE(CST,RC) XOR(RA,RC,RC)
+.macro ORL(RA, CST, RC)			LMOVE(CST,RC) OR(RA,RC,RC)
+
+
+.macro CMPEQL(RA, CC, RC)		LMOVE(CC,RC) CMPEQ(RA,RC,RC)
+.macro CMPLTL(RA, CC, RC)		LMOVE(CC,RC) CMPLT(RA,RC,RC)
+.macro CMPLEL(RA, CC, RC)		LMOVE(CC,RC) CMPLE(RA,RC,RC)
+
+.macro CMPNEL(RA, CC, RC)		CMPEQL(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGTL(RA, CC, RC)		CMPLEL(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGEL(RA, CC, RC)		CMPLTL(RA,CC,RC) LNOT(RC,RC)
+
+
+.macro LDL(RA, CC, RC)			LMOVE(CC, RC)	ADD(RA,RC,RC)	LD(RC,0,RC)
+.macro LDL(CC, RC)			LMOVE(CC, RC)			LD(RC,0,RC)
+
+| BNE and BEQ without LABEL to LITERAL conversion (N = Native)
+.macro BEQN(RA, LITERAL, RC)		betaopc(0x1C,RA,LITERAL, RC )
+.macro BEQN(RA, LITERAL)		betaopc(0x1C,RA,LITERAL, R31)
+.macro BNEN(RA, LITERAL, RC)		betaopc(0x1D,RA,LITERAL, RC )
+.macro BNEN(RA, LITERAL)		betaopc(0x1D,RA,LITERAL, R31)
+
+| BEQ and BNE with LABEL further than 16k instructions. 
+.macro JMPL(LABEL, RC)			LMOVE(LABEL,RC)	JMP(RC,RC)
+
+.macro BEQL(RA, LABEL, RC)		CMPEQC(RA,0,RC)	BEQN(RC,4,R31)	JMPL((LABEL % 0x80000000) + 0x80000000,RC)
+.macro BNEL(RA, LABEL, RC)		CMPEQC(RA,0,RC) BNEN(RC,4,R31)	JMPL((LABEL % 0x80000000) + 0x80000000,RC)

@@ -1,0 +1,120 @@
+.include ../beta.uasm
+.include ../lib.uasm
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+position: LONG(touches)
+
+touches: . = . + 100
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÂ l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+
+					RDCHAR()
+					ANDC(R0,0xFF,R0)	| R0 = uniquement le caractere
+
+					LMOVE(0x000FFF00,R10)
+					OR(R10,R0,R10)
+					LMOVE(0x80000000,R11)
+					ST(R10,0,R11)
+
+					LD(R31,position,R1)	| R1 = position courante
+					ANDC(R1,0xFFFC,R2)	| R2 = adresse de l'entier
+					ANDC(R1,0x3  ,R3)	| R3 = decallage
+					MULC(R3,8,R3)
+
+					SHL(R0,R3,R0)		| R0 , bonne pos
+					SHL(R4,R3,R4)
+					XORC(R4,-1,R4)		| Masque OK
+					
+
+					LD(R2,0,R5)		| R5 = entier lu
+					AND(R5,R4,R5)
+					OR(R5,R0,R5)
+					ST(R5,0,R2)
+
+					ADDC(R1,1,R1)
+					ST(R1,position,R31)
+					
+					
+
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee aÂ  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Debut du programme:                                 |
+|	Des que la machine demarre, elle va ici       |
+|	et execute le code normalement.               |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+
+__DebutDuProgramme:	BEQ(R31,__DebutDuProgramme,R31)
+	| On boucle sur __DebutDuProgramme indefiniment.

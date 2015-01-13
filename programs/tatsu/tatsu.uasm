@@ -1,0 +1,529 @@
+.include ../beta.uasm
+
+. = VEC_RESET
+	BEQ(R31,__start,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Quelques constantes qui servent souvent             |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+AdresseVideo  = 0x80000000
+
+NbLignes      = 30
+NbColonnes    = 80
+NbCasesAffich = NbLignes * NbColonnes
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Et des adresses dans la memoire que l'on reserve    |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+| L'adresse du backbuffer
+BackBuffer       = AdresseFin
+TailleBackBuffer = NbCasesAffich * 4
+
+| L'adresse de la pile principale
+Pile             = BackBuffer + TailleBackBuffer
+TaillePile       = 0x10000
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Quelques Macros utiles                              |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+| Ecrit une constantes 32 bits dans un registre
+.macro LMOVE(CST, REG)			ORC(R31, (((CST >> 16) % 0x10000) + ((CST >> 15) % 0x2)) , REG) SHLC(REG, 16 , REG) ADDC(REG, CST % 0x10000, REG)
+
+
+
+| Bitwise NOT
+.macro NOT(RA,RC)	XORC(RA,-1,RC)
+
+| Logical Not:
+|	0 -> 1
+|	_ -> 0
+.macro LNOT(RA,RC)	CMPEQC(RA,0,RC)
+
+
+| Missing comparaisons
+.macro CMPNE(RA,RB,RC)	CMPEQ(RA,RB,RC)	LNOT(RC,RC)
+.macro CMPGT(RA,RB,RC)	CMPLE(RA,RB,RC)	LNOT(RC,RC)
+.macro CMPGE(RA,RB,RC)	CMPLT(RA,RB,RC)	LNOT(RC,RC)
+
+.macro CMPNEC(RA,CC,RC)	CMPEQC(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGTC(RA,CC,RC)	CMPLEC(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGEC(RA,CC,RC)	CMPLTC(RA,CC,RC) LNOT(RC,RC)
+
+
+| Charge/ecrit l'argument i (a partir de 0) dans/depuis un registre
+.macro LDARG(i,REG)		LD(BP , - ((i + 3) * 4), REG)
+.macro STARG(REG,i)		ST(REG, - ((i + 3) * 4), BP )          	
+
+| MÃªme chose pour les variables locales
+.macro LDVAR(i,REG)		LD(BP ,    i * 4       , REG)
+.macro STVAR(REG,i)		ST(REG,    i * 4       , BP )
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Saute vers le debut du programme                    |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+__start:	LMOVE(__DebutDuProgramme,R0)
+		JMP(R0,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÃÂÃÂ l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee aÂ  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Macros et Functions de manipulation de la memoire   |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+
+.macro COPIERMEMOIRE(RTaille, RSource, RDest) PUSH(RDest) PUSH(RSource) PUSH(RTaille) CALL(copierMemoire,3)
+
+| copie de la memoire d'un endroit a un autre: copierMemoire(taille entiers de 32 bits, source, destination)
+copierMemoire:		PUSH(LP)
+			PUSH(BP)
+			MOVE(SP,BP)
+
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+
+			LDARG(0,R1)	| R1 = taille en entiers
+			MULC(R1,4,R1)	| R1 = taille en octets
+
+			LDARG(1,R2)	| R2 = adresse source
+			LDARG(2,R3)	| R3 = adresse de destination
+
+			ADD(R2,R1,R4)	| R4 = Fin de la source a copier
+
+copierMemoireBoucle:	CMPLT(R2,R4,R5)
+			BEQ(R5,copierMemoireFin,R31)
+
+			LD(R2,0,R5)
+			ST(R5,0,R3)
+
+			ADDC(R2,4,R2)
+			ADDC(R3,4,R3)
+			BEQ(R31,copierMemoireBoucle,R31)
+
+copierMemoireFin:	POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(BP)
+			POP(LP)
+			JMP(LP,R31)
+
+
+.macro REMPLIRMEMOIRE(RTaille, RValeur, RDest) PUSH(RDest) PUSH(RValeur) PUSH(RTaille) CALL(remplirMemoire,3)
+
+| remplit de la memoire avec une valeur: remplirMemoire(taille entiers de 32 bits, valeur de remplissage, destination)
+remplirMemoire:		PUSH(LP)
+			PUSH(BP)
+			MOVE(SP,BP)
+
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+
+			LDARG(0,R1)	| R1 = taille en entiers
+			MULC(R1,4,R1)	| R1 = taille en octets
+
+			LDARG(1,R2)	| R2 = valeur de remplissage
+			LDARG(2,R3)	| R3 = adresse de destination
+
+			ADD(R3,R1,R4)	| R4 = Fin de la destination
+
+remplirMemoireBoucle:	CMPLT(R3,R4,R5)
+			BEQ(R5,remplirMemoireFin,R31)
+
+			ST(R2,0,R3)
+
+			ADDC(R3,4,R3)
+			BEQ(R31,remplirMemoireBoucle,R31)
+
+remplirMemoireFin:	POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(BP)
+			POP(LP)
+			JMP(LP,R31)
+
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Macros et Functions de Math                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+| MIN(RA,RB,RC): RC = min(RA,RB)
+.macro MIN(RA,RB,RC)	PUSH(RB) PUSH(RA) CALL(min,2) MOVE(R0,RC)
+
+| min(A,B) = A si A <= B et B si B <= A
+min:		PUSH(LP)
+		PUSH(BP)
+		MOVE(SP,BP)
+
+		PUSH(R1)
+		PUSH(R2)
+		PUSH(R3)
+	
+		LDARG(0,R1)
+		LDARG(1,R2)
+
+		CMPLT(R1,R2,R3)
+		BEQ(R3,minElse,R31)
+	
+		MOVE(R1,R0)
+		BEQ(R31,minFin,R31)
+
+minElse:	MOVE(R2,R0)
+
+minFin:		POP(R3)
+		POP(R2)
+		POP(R1)
+		POP(BP)
+		POP(LP)
+		JMP(LP,R31)
+
+| MAX(RA,RB,RC): RC = max(RA,RB)
+.macro MAX(RA,RB,RC)	PUSH(RB) PUSH(RA) CALL(max,2) MOVE(R0,RC)
+
+| max(A,B) = A si A >= B et B si B >= A
+max:		PUSH(LP)
+		PUSH(BP)
+		MOVE(SP,BP)
+
+		PUSH(R1)
+		PUSH(R2)
+		PUSH(R3)
+	
+		LDARG(0,R1)
+		LDARG(1,R2)
+
+		CMPLT(R1,R2,R3)
+		BEQ(R3,minElse,R31)
+	
+		MOVE(R2,R0)
+		BEQ(R31,maxFin,R31)
+
+maxElse:	MOVE(R1,R0)
+
+maxFin:		POP(R3)
+		POP(R2)
+		POP(R1)
+		POP(BP)
+		POP(LP)
+		JMP(LP,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Macros et Functions de dessin                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+| Calcule la position d'un caractere dans le tableau (en octets) d'apres la ligne et la colonne
+.macro CaracterePosition(RColonne, RLigne, RPos) {
+			MULC(RLigne, NbColonnes, RPos)
+			ADD(RPos,RColonne,RPos)
+			MULC(RPos,4,RPos)
+}
+
+| Fonction qui remplit le backBuffer avec une valeur donnee en argument
+| remplirBackBuffer(valeur) = remplirMemoire(NbCasesAffich, valeur, BackBuffer)
+
+rempliBackBuffer:	PUSH(LP)
+			PUSH(BP)
+			MOVE(SP,BP)
+
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LMOVE(NbCasesAffich, R1)
+			LDARG(0,R2)
+			LMOVE(BackBuffer   , R3)
+
+			REMPLIRMEMOIRE(R1,R2,R3)
+
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(BP)
+			POP(LP)
+			JMP(LP,R31)
+
+
+
+| Fonction qui affiche le backbuffer a l'ecran: afficherBackBuffer() = COPIERMEMOIRE(NbCasesAffich, BackBuffer, AdresseVideo)
+afficherBackBuffer:	PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+
+			LMOVE(NbCasesAffich, R1)
+			LMOVE(BackBuffer   , R2)
+			LMOVE(AdresseVideo , R3)
+
+			COPIERMEMOIRE(R1,R2,R3)
+
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			JMP(LP,R31)
+
+
+| Dessine un caractere a l'ecran: dessineCaractere(colonne, ligne, valeur)
+dessineCaractere:	PUSH(LP)
+			PUSH(BP)
+			MOVE(SP,BP)
+
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+
+			LDARG(0,R1)	| R1 = colonne
+			LDARG(1,R2)	| R2 = ligne
+			LDARG(2,R3)	| R3 = valeur
+
+			| On verrifie que les coordonnees sont dans les limites
+			CMOVE(1,R4)
+
+			CMPGEC(R1,0         ,R5)	AND(R4,R5,R4)
+			CMPLTC(R1,NbColonnes,R5)	AND(R4,R5,R4)
+			CMPGEC(R2,0         ,R5)	AND(R4,R5,R4)
+			CMPLTC(R2,NbLignes  ,R5)	AND(R4,R5,R4)
+
+			| R4 = 1, toutes les conditions sont vrais. R4 = 0, au moins une est fausse
+			BEQ(R4,dessineCaractereFin,R31)
+
+			CaracterePosition(R1,R2,R4)
+			LMOVE(BackBuffer, R5)
+			ADD(R4,R5,R5)
+
+			ST(R3,0,R5)
+			
+
+dessineCaractereFin:	POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(BP)
+			POP(LP)
+			JMP(LP,R31)
+
+
+
+.macro CLIP(RCol,RLigne,RLong,RHaut,RMat) PUSH(RMat) PUSH(RHaut) PUSH(RLong) PUSH(RLigne) PUSH(RCol) CALL(clip,5)
+
+| Dessine une matrice de valeurs a l'ecran: clip(colonne, ligne, longeur, hauteur, adresse de la matrice)
+clip:			PUSH(LP)
+			PUSH(BP)
+			MOVE(SP,BP)
+
+			PUSH(R1)
+			PUSH(R2)
+			PUSH(R3)
+			PUSH(R4)
+			PUSH(R5)
+			PUSH(R6)
+			PUSH(R7)
+			PUSH(R8)
+			PUSH(R9)
+			PUSH(R10)
+			PUSH(R11)
+			PUSH(R12)
+			PUSH(R13)
+			PUSH(R14)
+
+
+
+			LDARG(0,R1)				| R1 = colonne
+			LDARG(1,R2)				| R2 = ligne
+			LDARG(2,R3)				| R3 = longeur
+			LDARG(3,R4)				| R4 = hauteur
+			LDARG(4,R5)				| R5 = adresse de la matrice
+
+			MAX(R1,R31,R6)				| R6 = premiere colonne visible a l'ecran
+			MAX(R2,R31,R7)				| R7 = premiere ligne   visible a l'ecran
+
+			ADD(R1,R3,R8)				| R8 = derniere colonne + 1
+			CMOVE(NbColonnes, R10)			|
+			MIN(R8,R10,R8)				| R8 = derniere colonne a l'ecran + 1 
+
+			ADD(R2,R4,R9)				| R9 = derniere colonne + 1
+			CMOVE(NbColonnes, R10)			|
+			MIN(R9,R10,R9)				| R9 = derniere colonne a l'ecran + 1 
+
+			| For(ligne' = R7; ligne' < R9 ; ligne'++)
+			| For(col    = R6; col    < R8 ; col++   )
+
+			SUB(R6,R1,R10)				| R10 = premiere colonne visible dans la matrice
+
+			SUB(R8,R6,R11)				| R11 = nombre de caracteres visibles par ligne
+
+			LMOVE(BackBuffer,R12)			| R12 = adresse du backbuffer
+
+clipBoucleLignes:	CMPLT(R7,R9,R13)			| ligne < derniere ligne   + 1
+			BEQ(R13, clipBoucleLignesFin, R31)
+
+			SUB(R7,R2,R13)				| R12 = premiere ligne visible dans la matrice
+
+			MUL(R13,R3,R13)
+			ADD(R10,R13,R13)
+			MULC(R13,4,R13)
+			ADD(R13,R5,R13)				| R13 = adresse memoire du premier caractere de la ligne en cours visible dans la matrice
+
+			CaracterePosition(R6,R7,R14)
+			ADD(R14,R12,R14)			| R14 = adresse memoire du premier caractere de la ligne en cours visible dans le backbuffer
+
+			COPIERMEMOIRE(R11,R13,R14)
+
+			ADDC(R7,1,R7)
+			BEQ(R31,clipBoucleLignes  ,R31)
+
+clipBoucleLignesFin:	POP(R14)
+			POP(R13)
+			POP(R12)
+			POP(R11)
+			POP(R10)
+			POP(R9)
+			POP(R8)
+			POP(R7)
+			POP(R6)
+			POP(R5)
+			POP(R4)
+			POP(R3)
+			POP(R2)
+			POP(R1)
+			POP(BP)
+			POP(LP)
+			JMP(LP,R31)
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Debut du programme:                                 |
+|	Des que la machine demarre, elle va ici       |
+|	et execute le code normalement.               |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+matrice:	LONG(0x000FFF00 + 'a')
+		LONG(0x000FFF00 + 'b')
+		LONG(0x000FFF00 + 'c')
+		LONG(0x000FFF00 + 'd')
+		LONG(0x000FFF00 + 'e')
+		LONG(0x000FFF00 + 'f')
+		LONG(0x000FFF00 + 'g')
+		LONG(0x000FFF00 + 'h')
+		LONG(0x000FFF00 + 'i')
+
+__DebutDuProgramme:	LMOVE(Pile,SP)
+
+			CMOVE(0,R1)
+			CMOVE(0,R2)
+			CMOVE(3,R3)
+			CMOVE(3,R4)
+			LMOVE(matrice,R5)
+			CLIP(R1,R2,R3,R4,R5)
+			CALL(afficherBackBuffer)
+__boucleInfinie:	BEQ(R31,__boucleInfinie,R31)
+	| On boucle sur __DebutDuProgramme indefiniment.
+
+| L'adresse de la fin du programme
+AdresseFin = .

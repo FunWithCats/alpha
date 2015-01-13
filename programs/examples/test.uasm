@@ -1,0 +1,25 @@
+.include ../beta.uasm
+.include ../lib.uasm
+
+LMOVE(0x1234567,R0)
+CMOVE(0x42,R1)
+
+ANDC(R0,0xFF,R0)	| On met à 0 les bits 8 à 31.
+
+ANDC(R1,0xFFFC,R3)	| R3 = adresse multiple de 4 inférieure ou égale à R1
+LD(R3,0,R2)	| R2 = entier à l'adresse R3
+
+ANDC(R1,3,R4)	| R4 = numéro de l'octet dans l'entier (poids faible = 0)
+MULC(R4,8,R4)	| R4 = décalage nécessaire pour récupérer cet entier
+
+SHR(R2,R4,R5)	| Décalage pour mettre l'octet qu'on veut au début
+ANDC(R5,0xFF,R5)	| Octet à l'adresse R1
+
+XOR(R0,R5,R5)	| Xor entre le caractère lu et l'octet à l'adresse R1
+SHL(R5,R4,R5)	| On le met à la bonne position dans l'entier
+XOR(R2,R5,R2)	| On ecrit le caractère dans l'entier
+
+ST(R2,0,R3)	| On écrit en mémoire.
+
+. = 0x40
+LONG(0x789ABCDEF)

@@ -1,0 +1,50 @@
+.include ../beta.uasm
+.include ../lib.uasm
+
+. = VEC_RESET
+	BEQ(R31,__Debut,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+__InterruptionInstructionIllegale:	JMP(XP)
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					BEQL(R31,__f,LP)
+					JMP(XP)
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+
+| On teste ici les macro de long.uasm
+| Les instructions avec constantes de la machine beta
+| a savoir ADDC, SUBC, MULC, DIVC, BEQ, BNE, etc
+| code la constante (aussi appelee literal) sur 16 bits
+
+| Long.uasm defini des macros simulant ces instructions
+| Mais avec des constantes sur 32 bits.
+
+| Par exemple: LMOVE(CST, REG)
+| Permet de mettre la constante CST sur 32 bit dans le registre REG
+
+| Les instructions BNE et BEQ ne peuvent aller que
+| 32768 instructions en arriere ou en avant.
+
+| Les macros BNEL et BEQL permettent d'aller n'importe ou en memoire
+| ATTENTION: Leur 3ieme argument ne doit pas etre RC
+|		BEQL(...,...,R31) et BNEL(...,...,R31)
+|		NE MARCHE PÃS!
+
+
+__Debut:	BEQL(R31,__f,LP)	| On veut aller a __f
+		STORAGE(66000)		| Mais __f est 66000 instructions plus loin
+					| Trop loin pour BEQ et BNE
+__f:		JMP(LP)			| Mais pas trop loin pour BEQL et BNEL

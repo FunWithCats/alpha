@@ -1,0 +1,17 @@
+| Bitwise NOT
+.macro NOT(RA,RC)	XORC(RA,-1,RC)
+
+| Logical Not:
+|	0 -> 1
+|	_ -> 0
+.macro LNOT(RA,RC)	CMPEQC(RA,0,RC)
+
+
+| Missing comparaisons
+.macro CMPNE(RA,RB,RC)	CMPEQ(RA,RB,RC)	LNOT(RC,RC)
+.macro CMPGT(RA,RB,RC)	CMPLE(RA,RB,RC)	LNOT(RC,RC)
+.macro CMPGE(RA,RB,RC)	CMPLT(RA,RB,RC)	LNOT(RC,RC)
+
+.macro CMPNEC(RA,CC,RC)	CMPEQC(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGTC(RA,CC,RC)	CMPLEC(RA,CC,RC) LNOT(RC,RC)
+.macro CMPGEC(RA,CC,RC)	CMPLTC(RA,CC,RC) LNOT(RC,RC)

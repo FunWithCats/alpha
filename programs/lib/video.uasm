@@ -1,0 +1,29 @@
+| Video Memory Symbols and Macros
+
+| Address of the video Memory (beware, 32 bits!)
+VIDEOADDRESS = 0x80000000
+
+| Number of columns in text mode
+VIDEOCOLS = 80
+
+| Number of rows in text mode
+VIDEOROWS = 30
+
+| Nomber of chars in text mode
+VIDEOCHARS = VIDEOCOLS * VIDEOROWS
+
+| Size of video memory in text mode
+VIDEOSIZETEXT = 4 * VIDEOCHARS
+
+| Donne la position en memoire d'un caractere en fonction
+| de sa ligne et de sa colonne
+.macro VIDEOCHARPOS(row, col) (((row * VIDEOCOLS) + col) * 4)
+
+
+| Encode background and forgorund color plus a char into an int
+.macro COLOREDCHAR( BACKGROUND , FOREGROUND, CHAR)	(((BACKGROUND % 0x1000) << 20) + ((FOREGROUND % 1000) << 8) + (CHAR % 100))
+
+| Decode a colored char: RA = Source, RC=destination.
+.macro BACKGROUND(RA,RC)	SHRC(RA,20,RC)
+.macro FOREGROUND(RA,RC)	SHRC(RA, 8,RC) ANDC(RC,0xFFF,RC)
+.macro VCHAR(RA,RC)		ANDC(RA,0xFF,RC)

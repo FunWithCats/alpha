@@ -1,0 +1,175 @@
+.include ../beta.uasm
+. = VEC_RESET
+	BEQ(R31,__start,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+
+__start:	CMOVE(__DebutDuProgramme,R1)
+		JMP(R1,R31)
+
+.macro LDARG(i,REG)		LD(BP , - ((i + 3) * 4), REG)
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÂ l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee aÂ  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Debut du programme:                                 |
+|	Des que la machine demarre, elle va ici       |
+|	et execute le code normalement.               |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+tableau:		LONG(0xF)
+                        LONG(0xA)
+                        LONG(0x5)
+                        LONG(0x8)
+                        LONG(0x1)
+                        LONG(0x4)
+                        LONG(0x2)
+                        LONG(0xE)
+                        LONG(0x3)
+                        LONG(0xC)
+                        LONG(0x7)
+
+.macro TAB(Ra,Rb,Rc) {	MULC(Rb,4,Rc)
+	ADD(Ra,Rc,Rc)
+}
+
+.macro ECHANGER(tableau, i, j) PUSH(j) PUSH(i) PUSH(tableau) BEQ(R31,echanger,R31) SUBC(SP,3*8,SP)
+echanger:	PUSH(LP)	PUSH(BP)	ADDC(SP,0,BP)	PUSH(R1)	PUSH(R2)	PUSH(R3)	PUSH(R4)	PUSH(R5)	LD(BP,-12,R1)	LD(BP,-16,R2)	LD(BP,-20,R3)	TAB(R1,R2,R2)	LD(R2,0,R4)	TAB(R1,R3,R3)	LD(R3,0,R5)	ST(R5,0,R2)	ST(R4,0,R3)	POP(R5)	POP(R4)	POP(R3)	POP(R2)	POP(R1)	POP(BP)	POP(LP)	JMP(LP,R31)
+.macro TRIBULLE(Rtableau,Rtaille) PUSH(Rtaille) PUSH(Rtableau) BEQ(R31,triBulle,R31) SUBC(SP,2*8,SP)
+
+triBulle:	PUSH(LP)
+	PUSH(BP)
+	ADDC(SP,0,BP)
+
+	PUSH(R1)
+	PUSH(R2)
+	PUSH(R3)
+	PUSH(R4)
+	PUSH(R5)
+	PUSH(R6)
+	PUSH(R7)
+	PUSH(R8)
+	PUSH(R9)
+
+	LD(BP,-12,R1)	| R1 = adresse du tableau
+	LD(BP,-16,R2)	| R2 = taille
+	SUBC(R2,1,R3)	| R3 = taille - 1
+
+	ADDC(R31,0,R4)	| R4 = i
+triBulleFor1:	CMPLT(R4,R2,R5)	| i < taille
+	BEQ(R5,triBulleFin,R31)
+
+	ADDC(R31,0,R6)	| R6 = j
+triBulleFor2:	CMPLT(R6,R3,R5)	| j < taille - 1
+	BEQ(R5,triBulleFor1Fin,R31)
+
+	TAB(R1,R6,R7)
+	LD(R7,0,R7)	| R7 = tableau[j]
+
+	ADDC(R6,1,R8)	| R8 = j + 1
+	TAB(R1,R8,R9)
+	LD(R9,0,R9)	| R9 = tableau[j+1]
+
+	CMPLT(R9,R7,R5)	| tableau[j+1] < tableau[j]
+	BEQ(R5,triBulleFor2Fin,R31)
+
+	ECHANGER(R1,R6,R8)
+
+triBulleFor2Fin:	ADDC(R6,1,R6)	| j++
+	BEQ(R31,triBulleFor2,R31)
+
+triBulleFor1Fin:	ADDC(R4,1,R4)	| i++
+	BEQ(R31,triBulleFor1,R31)
+
+triBulleFin:	POP(R9)
+	POP(R8)
+	POP(R7)
+	POP(R6)
+	POP(R5)
+	POP(R4)
+	POP(R3)
+	POP(R2)
+	POP(R1)
+	POP(BP)
+	POP(LP)
+	JMP(LP,R31)
+		
+		
+__DebutDuProgramme:	CMOVE(Pile,SP)
+			CMOVE(tableau,R1)
+			CMOVE(11,R2)
+			TRIBULLE(R1,R2)
+boucleInfinie:		BEQ(R31,boucleInfinie,R31)
+	| On boucle sur __DebutDuProgramme indefiniment.
+
+
+Pile : STORAGE(10000)

@@ -1,0 +1,141 @@
+.include ../beta.uasm
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va aÂ l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionClavier:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee aÂ  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Debut du programme:                                 |
+|	Des que la machine demarre, elle va ici       |
+|	et execute le code normalement.               |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+.macro LMOVE(C,R) ADDC(R31,(C >> 16) + ((C >> 15)%2) , R) SHLC(R,16,R) ADDC(R, C % 0x10000, R)
+
+
+afficherRaquette:         PUSH(LP)
+                                  PUSH(BP)
+                                  ADDC(SP,0,BP)
+
+                                  PUSH(R1)
+                                  PUSH(R2)
+                                  PUSH(R3)
+                                  PUSH(R4)
+                                  PUSH(R5)
+                                  PUSH(R6)
+                                  PUSH(R7)
+                                  PUSH(R8)
+
+                                  LD(BP,-12,R1)
+                                  LD(BP,-16,R2)
+
+                                  LMOVE( 0x000FFF54 , R3)
+                                  ADDC(R31, 0 , R4) 
+afficherRaquetteWhile: CMPLEC(R4,4,R5)
+                                  BEQ(R5, finDuWhile, R31)
+
+                                   ADD(R2,R4,R6)
+                                   MULC(R6,80,R6)
+                                   ADD(R6,R1,R6)
+
+                                  MULC(R6,4,R7)               
+                                  LMOVE(0x80000000, R8)
+                                  ADD(R7,R8,R7)
+
+                                  ST(R3,0,R7)
+
+                                  ADDC(R4,1,R4)
+
+                                  BEQ(R31, afficherRaquetteWhile, R31)
+
+ finDuWhile:                POP(R8)
+                                  POP(R7)
+                                  POP(R6)
+                                  POP(R5)
+                                  POP(R4)
+                                  POP(R3)
+                                  POP(R2)
+                                  POP(R1)
+
+                                  POP(BP)
+                                  POP(LP)
+                                  JMP(LP,R31)
+
+.macro AFFICHERRAQUETTE(RX,RY)  PUSH(RY) PUSH(RX) BEQ(R31,afficherRaquette, LP) SUBC(SP,2*4,SP)
+
+
+__DebutDuProgramme:	                               LMOVE(10,R1)
+                                  LMOVE(23,R2)
+                                  AFFICHERRAQUETTE(R1,R2)      
+                
+
+BEQ(R31,__DebutDuProgramme,R31)
+	| On boucle sur __DebutDuProgramme indefiniment.

@@ -1,0 +1,127 @@
+.include ../beta.uasm
+. = VEC_RESET
+	BEQ(R31,__DebutDuProgramme,R31)
+. = VEC_II
+	BEQ(R31,__InterruptionInstructionIllegale,R31)
+. = VEC_CLK
+	BEQ(R31,__InterruptionHorloge,R31)	
+. = VEC_KBD
+	BEQ(R31,__InterruptionClavier,R31)
+. = VEC_MOUSE
+	BEQ(R31,__InterruptionSouris,R31)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Instruction Illegale:                  |
+|	Est appelee quand le compteur de programme    |
+|	PC pointe vers une instruction illegale       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionInstructionIllegale:	JMP(XP)
+	| On va a  l'instrcution suivante de l'instruction Illegale
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Horloge:                               |
+|	Avec Alpha, elle est appelee                  |
+|       30 fois par secondes.                         |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionHorloge:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Clavier:                               |
+|	Est appelee a chaque fois qu'une              |
+|	Touche est appuyee au clavier.                |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionClavier:		| On calcule l'adresse
+				| de l'instruction qui
+				| a ete interrompue.
+				SUBC(XP,4,XP)
+
+				| On recupere le caractere
+				| Tappe au clacier dans R0
+				RDCHAR()
+
+				| On met a 0 les bit 8 a 31
+				| Pour ne garder que le
+				| caractere lu
+				ANDC(R0,0xFF,R0)
+
+				| On ajoute les couleurs
+				| d'arriere et avant plan
+				| On met le tout dans RCHAR
+				OR(RCHAR,RCOLOR,RCHAR)
+
+				| Et on revient a
+				| l'instruction qui a ete
+				| interrompue.
+				JMP(XP)
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Interruption Souris:                                |
+|	Est appelee a  chaque fois que la             |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+__InterruptionSouris:			SUBC(XP,4,XP)
+					JMP(XP)
+	| On va a  l'instrcution qui a ete interrompue
+	| et donc pas executee.
+
+
+
+
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+|                                                     |
+| Debut du programme:                                 |
+|	Des que la machine demarre, elle va ici       |
+|	et execute le code normalement.               |
+|	souris bouge ou clique.                       |
+|                                                     |
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+
+| On pose comme definition que RCHAR  = R0
+| Donc a chaque fois qu'on met RCHAR, BSim
+| le remplace par R0
+| Idem pour RVID et RCOLOR
+RCHAR   = R0
+RVID    = R1
+RCOLOR  = R2
+
+
+| Addresse de la memoire video
+videoAddr:		LONG(0x80000000)
+
+| Couleur: fond noir et caractere en blanc.
+color:			LONG(0x000FFF00)
+
+__DebutDuProgramme:	| On charge l'adresse de la memoire video
+			| Dans RVID (c'est a dire dans R0)
+			LD(videoAddr,RVID)
+
+			| On charge la couleur dans RCOLOR
+			| C'est a dire dans R1
+			LD(color,RCOLOR)
+
+			| On boucle en ecrivant le registre RCHAR
+			| (c'est a dire R2) au debut de la memoire
+			| video.
+__boucle:		ST(RCHAR,0,RVID)
+			BR(__boucle)

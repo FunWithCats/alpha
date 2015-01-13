@@ -1,0 +1,33 @@
+| requires long.uasm
+
+| initialize the stack
+.macro STACKINIT(stackadress)	CMOVE(stackadress,BP)	CMOVE(stackadress,SP)
+.macro STACKINITL(stackadress)	LMOVE(stackadress,BP)	LMOVE(stackadress,SP)
+
+| A stack frame must have this form
+|	<arg n-1>
+|	...
+|	<arg 0>
+|	<saved lp>
+|	<saved bp>
+|	<saved regs>
+|	<local var 0>
+|	...
+| 	<local var m-1>
+
+
+| Function begining and ending
+.macro FUNCTIONBEGIN(n)		PUSH(LP) PUSH(BP) MOVE(SP,BP) ALLOCATE(n)
+.macro FUNCTIONEND(n)		DEALLOCATE(n) POP(BP) POP(LP) JMP(LP)
+
+| Function beginning and ending without local variables
+.macro FUNCTIONBEGIN()		PUSH(LP) PUSH(BP) MOVE(SP,BP)
+.macro FUNCTIONEND()		POP(BP) POP(LP) JMP(LP)
+
+.macro LDARG(i,REG)		LD(BP , - ((i + 3) * 4), REG)
+.macro STARG(REG,i)		ST(REG, - ((i + 3) * 4), BP )          	
+
+.macro LDVAR(i,REG)		LD(BP ,    i * 4       , REG)
+.macro STVAR(REG,i)		ST(REG,    i * 4       , BP )
+
+
